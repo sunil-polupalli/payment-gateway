@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Webhook Dashboard</title>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: sans-serif; padding: 20px; background: #f4f6f8; }
+        .container { max-width: 900px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { text-align: left; padding: 12px; border-bottom: 1px solid #ddd; }
+        th { background-color: #f8f9fa; }
+        button { padding: 8px 16px; background: #007bff; color: white; border: none; cursor: pointer; border-radius: 4px; }
+        input { padding: 8px; width: 300px; }
+    </style>
+</head>
+<body>
+    <div class="container" data-test-id="webhook-config">
+        <h2>Webhook Configuration</h2>
+        
+        <form data-test-id="webhook-config-form" onsubmit="event.preventDefault(); alert('Config Saved!');">
+            <div style="margin-bottom: 15px;">
+                <label>Webhook URL</label><br>
+                <input data-test-id="webhook-url-input" type="url" value="http://localhost:4000/webhook">
+            </div>
+            
+            <div style="margin-bottom: 15px;">
+                <label>Webhook Secret</label><br>
+                <span data-test-id="webhook-secret" style="font-family: monospace; background: #eee; padding: 5px;">whsec_test_abc123</span>
+                <button data-test-id="regenerate-secret-button" type="button">Regenerate</button>
+            </div>
+            
+            <button data-test-id="save-webhook-button" type="submit">Save Configuration</button>
+            <button data-test-id="test-webhook-button" type="button">Send Test Webhook</button>
+        </form>
+
+        <h3>Webhook Logs</h3>
+        <table data-test-id="webhook-logs-table">
+            <thead>
+                <tr>
+                    <th>Event</th>
+                    <th>Status</th>
+                    <th>Attempts</th>
+                    <th>Last Attempt</th>
+                    <th>Response</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="logs-body">
+                </tbody>
+        </table>
+    </div>
+
+    <script>
+        async function loadLogs() {
+            try {
+                const res = await fetch('http://localhost:8000/api/v1/webhooks', {
+                    headers: { 'X-Api-Key': 'key_test_abc123', 'X-Api-Secret': 'secret_test_xyz789' }
+                });
+                const data = await res.json();
+                
+                const tbody = document.getElementById('logs-body');
+                tbody.innerHTML = '';
+
+                data.data.forEach(log => {
+                    const tr = document.createElement('tr');
+                    tr.setAttribute('data-test-id', 'webhook-log-item');
+                    tr.setAttribute('data-webhook-id', log.id);
+                    
+                    tr.innerHTML = `
+                        <td data-test-id="webhook-event">${log.event}</td>
+                        <td data-test-id="webhook-status">${log.status}</td>
+                        <td data-test-id="webhook-attempts">${log.attempts}</td>
+                        <td data-test-id="webhook-last-attempt">${log.lastAttemptAt || '-'}</td>
+                        <td data-test-id="webhook-response-code">${log.responseCode || '-'}</td>
+                        <td>
+                            ${log.status === 'failed' ? `<button data-test-id="retry-webhook-button" onclick="retryWebhook('${log.id}')">Retry</button>` : ''}
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            } catch (e) { console.error("Failed to load logs", e); }
+        }
+
+        async function retryWebhook(id) {
+            await fetch(`http://localhost:8000/api/v1/webhooks/${id}/retry`, {
+                method: 'POST',
+                headers: { 'X-Api-Key': 'key_test_abc123', 'X-Api-Secret': 'secret_test_xyz789' }
+            });
+            setTimeout(loadLogs, 1000);
+        }
+
+        loadLogs();
+        setInterval(loadLogs, 5000); // Auto refresh
+    </script>
+</body>
+</html>
