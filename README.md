@@ -64,23 +64,47 @@ docker-compose up -d --build
 
 ```
 
-### Services Overview
+### 🖥️ Services Overview
 
 | Service | URL / Port | Description |
 | --- | --- | --- |
+| **Dashboard** | `http://localhost:3000` | **Main Entry Point** (Demo Store, Logs, Docs) |
 | **API** | `http://localhost:8000` | Core Payment API |
-| **Dashboard** | `http://localhost:3000` | Webhook logs & Config |
-| **Checkout SDK** | `http://localhost:3001` | Embeddable Widget |
+| **Checkout SDK** | `http://localhost:3001` | Embeddable JS Widget |
 | **Redis** | `Port 6379` | Job Queue |
 | **Postgres** | `Port 5432` | Database |
 
 ---
 
-## 🔌 API Documentation
+## 🧪 Testing Instructions (The Easy Way)
+
+We have built a visual Dashboard to make testing easy.
+
+1. **Open the Dashboard:**
+Go to `http://localhost:3000`. You should see the status of your workers (Green/Running).
+2. **Run a Test Payment:**
+* Click on **"Demo Store"** in the navigation bar.
+* Click **"Buy Now"**.
+* The Checkout Modal will open. Select "UPI" or "Card" and pay.
+* Wait ~5 seconds (simulated bank delay).
+* You will receive a success alert.
+
+
+3. **Check Webhooks:**
+* Go to the **"Webhooks"** tab.
+* You will see the `payment.success` event logged there.
+* If it failed, you can click "Retry" to test the retry logic.
+
+
+
+---
+
+## 🔌 API Documentation (Manual Testing)
+
+If you prefer using `curl`, here are the endpoints.
 
 ### 1. Create Payment
 
-Initiates a payment. Returns `201 Created` immediately with status `pending`.
 **POST** `/api/v1/payments`
 
 ```bash
@@ -92,7 +116,7 @@ curl -X POST http://localhost:8000/api/v1/payments \
     "amount": 50000, 
     "currency": "INR", 
     "method": "upi", 
-    "order_id": "ord_test_001",
+    "order_id": "ord_test_001", 
     "vpa": "test@upi"
   }'
 
@@ -100,7 +124,6 @@ curl -X POST http://localhost:8000/api/v1/payments \
 
 ### 2. Capture Payment
 
-Captures a successful payment.
 **POST** `/api/v1/payments/{id}/capture`
 
 ```bash
@@ -112,7 +135,6 @@ curl -X POST http://localhost:8000/api/v1/payments/{payment_id}/capture \
 
 ### 3. Refund Payment
 
-Initiates a refund for a successful payment.
 **POST** `/api/v1/payments/{id}/refunds`
 
 ```bash
@@ -124,14 +146,18 @@ curl -X POST http://localhost:8000/api/v1/payments/{payment_id}/refunds \
 
 ```
 
-### 4. Job Queue Status (Test Endpoint)
+### 4. Job Queue Status
 
-View the status of background jobs.
 **GET** `/api/v1/test/jobs/status`
+
+```bash
+curl http://localhost:8000/api/v1/test/jobs/status
+
+```
 
 ---
 
-## 🔧 Environment Configuration
+## 🔧 Configuration
 
 The system uses the following environment variables (configured in `docker-compose.yml`):
 
@@ -144,7 +170,7 @@ The system uses the following environment variables (configured in `docker-compo
 
 ---
 
-## 📦 SDK Integration Guide
+## 📦 SDK Integration
 
 To integrate the payment gateway on a merchant website:
 
@@ -169,61 +195,4 @@ const gateway = new window.PaymentGateway({
 gateway.open();
 
 ```
-
----
-
-## 🔒 Webhook Integration Guide
-
-### 1. Configure Webhook URL
-
-Go to the Dashboard at `http://localhost:3000/webhooks.html` to set your webhook URL and view your secret.
-
-### 2. Verify Signatures
-
-The system sends an `X-Webhook-Signature` header with every request. You must verify this using HMAC-SHA256.
-
-**Node.js Example:**
-
-```javascript
-const crypto = require('crypto');
-
-function verifyWebhook(req, secret) {
-    const signature = req.headers['x-webhook-signature'];
-    const payload = JSON.stringify(req.body); // Must be raw JSON body
-    
-    const expected = crypto
-        .createHmac('sha256', secret)
-        .update(payload)
-        .digest('hex');
-
-    return signature === expected;
-}
-
-```
-
-### 3. Retry Logic
-
-If your server returns a non-200 response, the gateway will retry delivery 5 times using this schedule:
-
-1. **Attempt 1:** Immediate
-2. **Attempt 2:** 1 Minute
-3. **Attempt 3:** 5 Minutes
-4. **Attempt 4:** 30 Minutes
-5. **Attempt 5:** 2 Hours
-
-*Note: Enable `WEBHOOK_RETRY_INTERVALS_TEST=true` in docker-compose to use 5-second intervals for testing.*
-
----
-
-## 🧪 Testing Instructions
-
-1. **Start Services:** Ensure `docker-compose up` is running.
-2. **Frontend Test:** * Visit `http://localhost:3001/checkout.html?order_id=TEST_1&key=key_test_abc123`.
-* Click "Pay Now".
-* Watch the spinner and success message.
-
-
-3. **Backend Verification:**
-* Check worker logs: `docker logs -f gateway_worker`.
-* Check dashboard logs: `http://localhost:3000/webhooks.html`.
 
